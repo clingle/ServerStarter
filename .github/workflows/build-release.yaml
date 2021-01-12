@@ -1,0 +1,58 @@
+name: Build Release Assets
+
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+    - 'v*'
+
+jobs:
+  package_release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get the id from the tag ref
+        id: get_version
+        run: |
+          echo "::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}"
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Cache Gradle packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          restore-keys: ${{ runner.os }}-gradle
+      - name: Run test suite with Gradle
+        run: ./gradlew test 
+      - name: Build assets with Gradle
+        run: ./gradlew zipDist
+      - name: Create Github release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+      - name: Upload jar file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/dist/serverstarter-${{ steps.get_version.outputs.VERSION }}/serverstarter-${{ steps.get_version.outputs.VERSION }}.jar
+          asset_name: serverstarter-${{ steps.get_version.outputs.VERSION }}.jar
+          asset_content_type: application/java-archive
+      - name: Upload zip file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/release/serverstarter-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_name: serverstarter-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_content_type: application/zip
+        
